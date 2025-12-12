@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Öğrenci Performans Takip Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        body { background-color: #f8f9fa; }
+        .hidden { display: none !important; }
+        .score-badge { font-size: 1.1em; font-weight: bold; }
+        .log-list { max-height: 250px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen" class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-4">
+                <div class="card p-4 shadow">
+                    <h3 class="text-center mb-4">Giriş Portalı</h3>
+                    <input type="email" id="email" class="form-control mb-3" placeholder="E-posta Adresi">
+                    <input type="password" id="password" class="form-control mb-3" placeholder="Şifre">
+                    <button onclick="girisYap()" class="btn btn-primary w-100">Giriş Yap</button>
+                    <p id="login-error" class="text-danger mt-3 text-center small"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-screen" class="container mt-4 hidden">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 id="panel-title">📚 Yönetim Paneli</h2>
+            <div>
+                <button id="rapor-btn" onclick="showReports()" class="btn btn-info me-2 hidden"><i class="bi bi-bar-chart-line"></i> Raporlar</button>
+                <button onclick="cikisYap()" class="btn btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Çıkış</button>
+            </div>
+        </div>
+        
+        <div id="teacher-tools" class="hidden">
+            <div class="card p-3 mb-3">
+                <h5><i class="bi bi-person-plus"></i> Öğrenci Ekle</h5>
+                <div class="input-group">
+                    <input type="text" id="new-name" class="form-control" placeholder="Ad Soyad">
+                    <input type="text" id="new-class" class="form-control" placeholder="Sınıf (Örn: 9-A)">
+                    <button onclick="ogrenciEkle()" class="btn btn-success">Ekle</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="student-view">
+            <div class="card p-3">
+                <h5><i class="bi bi-people"></i> <span id="list-title">Öğrenci Listesi</span></h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Sınıf</th>
+                                <th>Ad Soyad</th>
+                                <th>Toplam Puan</th>
+                                <th id="action-header">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-list-body">
+                            </tbody>
+                    </table>
+                </div>
+                <div id="parent-info" class="hidden">
+                    <h5 class="mt-4"><i class="bi bi-clock-history"></i> Son Davranış Kayıtları</h5>
+                    <ul id="parent-log-list" class="list-group log-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal fade" id="scoreModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Puan Güncelleme (<span id="modal-student-name"></span>)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+              <input type="hidden" id="modal-student-id">
+              <input type="hidden" id="modal-current-score">
+              <input type="number" id="point-input" class="form-control mb-3" placeholder="+ / - Puan Miktarı">
+              <textarea id="reason-input" class="form-control" placeholder="Neden (Örn: Ödevi Tamamladı, Derse Katılım Eksik)"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+            <button type="button" onclick="puanKaydet()" class="btn btn-primary">Kaydet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="reportModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Performans Raporu</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+              <button onclick="raporUret('haftalik')" class="btn btn-warning me-2">Haftalık Rapor</button>
+              <button onclick="raporUret('aylik')" class="btn btn-warning me-2">Aylık Rapor</button>
+              <hr>
+              <div id="report-output"></div>
+              <p class="small text-muted mt-3">Raporu yazdırabilmek için tarayıcınızın yazdırma özelliğini kullanın.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https.www.gstatic.com/firebasejs/9.6.1/firebase-analytics-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // --- 1. AYARLAR ---
+        // BURAYI KENDİ FIREBASE CONFIG KODUNUZLA DEĞİŞTİRMEYİ UNUTMAYIN
+       const firebaseConfig = {
+  apiKey: "AIzaSyDEHMG4QgACtomI_13PoFBBY0-fJe12SCo",
+  authDomain: "ogrenci-performans-sistemi.firebaseapp.com",
+  projectId: "ogrenci-performans-sistemi",
+  storageBucket: "ogrenci-performans-sistemi.firebasestorage.app",
+  messagingSenderId: "62800575318",
+  appId: "1:62800575318:web:dd117d3157720e825034f7",
+  measurementId: "G-2GXN4D0EHZ"
+};
+
+        // ------------------
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const analytics = firebase.analytics();
+
+        let currentUserRole = null; // Giriş yapanın rolünü tutacak değişken
+        let currentStudentId = null; // Veli için çocuğunun ID'sini tutacak
+
+        // --- GİRİŞ İŞLEMLERİ ---
+        function girisYap() {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            document.getElementById('login-error').innerText = '';
+            
+            auth.signInWithEmailAndPassword(e, p)
+                .catch((err) => {
+                    document.getElementById('login-error').innerText = "Giriş Hatası: " + err.message;
+                });
+        }
+
+        function cikisYap() {
+            auth.signOut();
+            currentUserRole = null;
+            currentStudentId = null;
+        }
+
+        // Oturum Durum Kontrolü ve Rol Atama
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                // Giriş başarılı, şimdi rolünü kontrol et
+                db.collection("users").doc(user.uid).get().then(doc => {
+                    const userData = doc.data();
+                    if (!userData || !userData.role) {
+                        auth.signOut(); // Rolü olmayan atılır
+                        return alert("Hesap yetkilendirilmemiş.");
+                    }
+                    
+                    currentUserRole = userData.role;
+                    currentStudentId = userData.studentId || null; // Veli ise öğrenci ID'si
+                    
+                    // Ekranları değiştir
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('app-screen').classList.remove('hidden');
+                    
+                    setupPanel(currentUserRole); // Panele özel ayarları yap
+                });
+
+            } else {
+                // Çıkış yapılmış veya oturum kapalı
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
+            }
+        });
+        
+        // Panele özel ayarlamalar
+        function setupPanel(role) {
+            const isTeacher = role === 'teacher';
+            document.getElementById('teacher-tools').classList.toggle('hidden', !isTeacher);
+            document.getElementById('rapor-btn').classList.toggle('hidden', !isTeacher);
+            document.getElementById('parent-info').classList.add('hidden'); // Veli log alanı başta gizli
+            
+            if (isTeacher) {
+                document.getElementById('panel-title').innerText = '👨‍🏫 Öğretmen Yönetim Paneli';
+                document.getElementById('action-header').innerText = 'İşlemler';
+                document.getElementById('list-title').innerText = 'Tüm Öğrenciler';
+                verileriDinleTeacher(); // Tüm öğrencileri listele
+            } else { // Veli
+                document.getElementById('panel-title').innerText = '👨‍👩‍👧 Veli Bilgilendirme Portalı';
+                document.getElementById('action-header').innerText = 'Puan Detayı';
+                document.getElementById('list-title').innerText = 'Çocuğunuzun Performansı';
+                document.getElementById('parent-info').classList.remove('hidden');
+                verileriDinleParent(); // Sadece kendi çocuğunu listele
+                loglariGosterParent(); // Çocuğun loglarını göster
+            }
+        }
+        
+        // --- ÖĞRETMEN İŞLEMLERİ ---
+        
+        // 1. Öğrenci Ekle
+        function ogrenciEkle() {
+            const ad = document.getElementById('new-name').value;
+            const sinif = document.getElementById('new-class').value;
+            if(!ad || !sinif) return alert("Lütfen Ad Soyad ve Sınıfı doldurun.");
+
+            db.collection("students").add({
+                name: ad,
+                className: sinif,
+                score: 0,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                document.getElementById('new-name').value = "";
+                document.getElementById('new-class').value = "";
+                alert("Öğrenci başarıyla eklendi.");
+            });
+        }
+
+        // 2. Tüm Öğrencileri Listele (Öğretmen)
+        function verileriDinleTeacher() {
+             db.collection("students").orderBy("className").onSnapshot((snapshot) => {
+                renderStudentList(snapshot); // Ortak fonksiyona yolla
+            });
+        }
+        
+        // 3. Puanlama Modalını Aç
+        function openScoreModal(id, name, score) {
+            document.getElementById('modal-student-id').value = id;
+            document.getElementById('modal-student-name').innerText = name;
+            document.getElementById('modal-current-score').value = score;
+            document.getElementById('point-input').value = '';
+            document.getElementById('reason-input').value = '';
+            new bootstrap.Modal(document.getElementById('scoreModal')).show();
+        }
+
+        // 4. Puan Kaydetme (Davranış Kaydı)
+        function puanKaydet() {
+            const id = document.getElementById('modal-student-id').value;
+            const puan = parseInt(document.getElementById('point-input').value);
+            const neden = document.getElementById('reason-input').value;
+            const mevcutPuan = parseInt(document.getElementById('modal-current-score').value);
+            
+            if (isNaN(puan) || !neden) return alert("Puan ve neden alanları doldurulmalıdır.");
+            
+            const yeniPuan = mevcutPuan + puan;
+            
+            // 4.1. Öğrencinin toplam puanını güncelle
+            db.collection("students").doc(id).update({ score: yeniPuan });
+            
+            // 4.2. Log (Geçmiş) kaydı ekle
+            db.collection("logs").add({
+                studentId: id,
+                change: puan,
+                reason: neden,
+                date: firebase.firestore.FieldValue.serverTimestamp(),
+                teacher: auth.currentUser.email
+            }).then(() => {
+                // 4.3. Analytics kaydı
+                analytics.logEvent('score_updated', {
+                    student_id: id,
+                    point_change: puan,
+                    is_positive: puan > 0 ? 'yes' : 'no'
+                });
+                new bootstrap.Modal(document.getElementById('scoreModal')).hide();
+            });
+        }
+        
+        // --- VELİ İŞLEMLERİ ---
+        
+        // 1. Sadece Kendi Çocuğunu Listele (Veli)
+        function verileriDinleParent() {
+            if (!currentStudentId) return document.getElementById('student-list-body').innerHTML = '<tr><td colspan="4" class="text-center text-danger">Hesabınız hiçbir öğrenciye atanmamış.</td></tr>';
+            
+            // Sadece tek bir öğrenciyi ID'si ile dinle
+            db.collection("students").doc(currentStudentId).onSnapshot((doc) => {
+                const liste = document.getElementById("student-list-body");
+                liste.innerHTML = "";
+                
+                if (doc.exists) {
+                    const data = doc.data();
+                    const id = doc.id;
+                    const renk = data.score >= 0 ? "text-success" : "text-danger";
+
+                    const row = `
+                        <tr>
+                            <td><span class="badge bg-secondary">${data.className}</span></td>
+                            <td>${data.name}</td>
+                            <td class="${renk} score-badge">${data.score}</td>
+                            <td><span class="text-muted small">Erişim Kısıtlı</span></td>
+                        </tr>
+                    `;
+                    liste.innerHTML += row;
+                } else {
+                    liste.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Öğrenci kaydı bulunamadı.</td></tr>';
+                }
+            });
+        }
+        
+        // 2. Çocuğun Loglarını Göster (Veli)
+        function loglariGosterParent() {
+             if (!currentStudentId) return;
+             
+             db.collection("logs")
+                .where("studentId", "==", currentStudentId)
+                .orderBy("date", "desc")
+                .limit(10)
+                .onSnapshot((snapshot) => {
+                    const logList = document.getElementById("parent-log-list");
+                    logList.innerHTML = "";
+                    
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const puan = data.change > 0 ? `+${data.change}` : data.change;
+                        const renk = data.change > 0 ? "text-success" : "text-danger";
+                        const tarih = data.date ? new Date(data.date.seconds * 1000).toLocaleDateString() : 'Bilinmiyor';
+                        
+                        const listItem = `
+                            <li class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-bold">${data.reason}</div>
+                                    <span class="small text-muted">${tarih}</span>
+                                </div>
+                                <span class="badge bg-light rounded-pill ${renk}">${puan}</span>
+                            </li>
+                        `;
+                        logList.innerHTML += listItem;
+                    });
+                     if (snapshot.empty) {
+                        logList.innerHTML = '<li class="list-group-item text-center text-muted">Henüz davranış kaydı yok.</li>';
+                    }
+                });
+        }
+
+
+        // --- RAPORLAMA İŞLEMLERİ (Öğretmen) ---
+        
+        // Rapor modalını açar
+        function showReports() {
+             new bootstrap.Modal(document.getElementById('reportModal')).show();
+        }
+        
+        // Raporu Üret
+        function raporUret(tip) {
+            const output = document.getElementById('report-output');
+            output.innerHTML = 'Rapor hazırlanıyor...';
+
+            const endDate = new Date();
+            const startDate = new Date();
+            
+            if (tip === 'haftalik') {
+                startDate.setDate(endDate.getDate() - 7);
+            } else { // aylik
+                startDate.setMonth(endDate.getMonth() - 1);
+            }
+            
+            // Tüm logları filtrele
+            db.collection("logs").where("date", ">=", startDate).get().then(snapshot => {
+                let studentSummary = {}; // Öğrenci ID'sine göre özet
+                let totalPositive = 0;
+                let totalNegative = 0;
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const id = data.studentId;
+                    
+                    if (!studentSummary[id]) {
+                        studentSummary[id] = { pos: 0, neg: 0, studentName: 'Bilinmiyor' };
+                    }
+                    
+                    if (data.change > 0) {
+                        studentSummary[id].pos += data.change;
+                        totalPositive += data.change;
+                    } else {
+                        studentSummary[id].neg += data.change;
+                        totalNegative += data.change;
+                    }
+                });
+                
+                // Öğrenci İsimlerini Çek (Daha karmaşık ama doğru yol)
+                const studentPromises = Object.keys(studentSummary).map(id => 
+                    db.collection('students').doc(id).get().then(doc => {
+                        if (doc.exists) {
+                            studentSummary[id].studentName = doc.data().name + ' (' + doc.data().className + ')';
+                        }
+                    })
+                );
+                
+                // Tüm isimler çekildikten sonra raporu oluştur
+                Promise.all(studentPromises).then(() => {
+                    let html = `
+                        <h6>${tip.toUpperCase()} PERFORMANS ÖZETİ (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})</h6>
+                        <p class="small">Toplam Verilen Puan: <span class="text-success">${totalPositive}</span> Olumlu, <span class="text-danger">${totalNegative}</span> Olumsuz</p>
+                        <table class="table table-striped table-sm">
+                            <thead><tr><th>Öğrenci</th><th>Olumlu Puan</th><th>Olumsuz Puan</th><th>Net Puan</th></tr></thead>
+                            <tbody>
+                    `;
+                    
+                    for (const id in studentSummary) {
+                        const summary = studentSummary[id];
+                        const netPuan = summary.pos + summary.neg;
+                        const renk = netPuan >= 0 ? "text-success" : "text-danger";
+
+                        html += `
+                            <tr>
+                                <td>${summary.studentName}</td>
+                                <td class="text-success">${summary.pos}</td>
+                                <td class="text-danger">${summary.neg}</td>
+                                <td class="${renk} fw-bold">${netPuan}</td>
+                            </tr>
+                        `;
+                    }
+                    
+                    html += '</tbody></table>';
+                    output.innerHTML = html;
+                });
+            }).catch(error => {
+                output.innerHTML = '<p class="text-danger">Rapor oluşturulurken hata oluştu: ' + error.message + '</p>';
+            });
+        }
+        
+        // --- ORTAK FONKSİYONLAR ---
+        
+        // Öğrenci listesini HTML'e yazar
+        function renderStudentList(snapshot) {
+            const liste = document.getElementById("student-list-body");
+            liste.innerHTML = "";
+            const isTeacher = currentUserRole === 'teacher';
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                const id = doc.id;
+                
+                let renk = data.score >= 0 ? "text-success" : "text-danger";
+
+                const actions = isTeacher 
+                    ? `<button onclick="openScoreModal('${id}', '${data.name}', ${data.score})" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil-square"></i> Puan Ver</button>`
+                    : `<span class="text-muted small">Okuma Erişimi</span>`;
+
+                const row = `
+                    <tr>
+                        <td><span class="badge bg-secondary">${data.className}</span></td>
+                        <td>${data.name}</td>
+                        <td class="${renk} score-badge">${data.score}</td>
+                        <td>${actions}</td>
+                    </tr>
+                `;
+                liste.innerHTML += row;
+            });
+             if (snapshot.empty && isTeacher) {
+                liste.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Henüz öğrenci eklenmemiş.</td></tr>';
+            }
+        }
+    </script>
+</body>
+</html>
