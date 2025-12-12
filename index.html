@@ -117,48 +117,31 @@
       </div>
     </div>
     
-   <!-- Bootstrap -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Firebase (Modüler CDN Yöntemi) -->
-<script type="module">
-  // 1. Sadece ihtiyacınız olan modülleri import edin[citation:3]
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-  import { getAuth } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-
-  // 2. Firebase yapılandırmanız (kendi bilgileriniz zaten burada)
-  const firebaseConfig = {
+    <script>
+        // --- 1. AYARLAR ---
+        // BURAYI KENDİ FIREBASE CONFIG KODUNUZLA DEĞİŞTİRMEYİ UNUTMAYIN
+        const firebaseConfig = {
     apiKey: "AIzaSyDEHMG4QgACtomI_13PoFBBY0-fJe12SCo",
     authDomain: "ogrenci-performans-sistemi.firebaseapp.com",
     projectId: "ogrenci-performans-sistemi",
     storageBucket: "ogrenci-performans-sistemi.firebasestorage.app",
     messagingSenderId: "62800575318",
     appId: "1:62800575318:web:dd117d3157720e825034f7",
-    measurementId: "G-2GXN4D0EHZ"
-  };
-
-  // 3. Firebase'i başlat
-  const app = initializeApp(firebaseConfig);
-
-  // 4. Kullanmak istediğiniz servisleri başlatın[citation:3]
-  const analytics = getAnalytics(app); // Artık hata vermeyecek
-  const auth = getAuth(app);
-  const firestore = getFirestore(app);
-
-  // 5. Artık auth, firestore vb. servisleri uygulamanızda kullanabilirsiniz.
-  console.log("Firebase başarıyla başlatıldı!");
-</script>
+            // measurementId (Analytics kısmı çıkarıldı)
+        };
         // ------------------
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
-        const analytics = firebase.analytics();
 
-        let currentUserRole = null; // Giriş yapanın rolünü tutacak değişken
-        let currentStudentId = null; // Veli için çocuğunun ID'sini tutacak
+        let currentUserRole = null; 
+        let currentStudentId = null; 
 
         // --- GİRİŞ İŞLEMLERİ ---
         function girisYap() {
@@ -168,6 +151,7 @@
             
             auth.signInWithEmailAndPassword(e, p)
                 .catch((err) => {
+                    // Hata 400 durumunda kullanıcıya hata mesajını gösterir
                     document.getElementById('login-error').innerText = "Giriş Hatası: " + err.message;
                 });
         }
@@ -185,18 +169,20 @@
                 db.collection("users").doc(user.uid).get().then(doc => {
                     const userData = doc.data();
                     if (!userData || !userData.role) {
-                        auth.signOut(); // Rolü olmayan atılır
-                        return alert("Hesap yetkilendirilmemiş.");
+                        auth.signOut(); 
+                        return alert("Hesap yetkilendirilmemiş. Lütfen Firestore'da 'users' koleksiyonunu kontrol edin.");
                     }
                     
                     currentUserRole = userData.role;
-                    currentStudentId = userData.studentId || null; // Veli ise öğrenci ID'si
+                    currentStudentId = userData.studentId || null; 
                     
-                    // Ekranları değiştir
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('app-screen').classList.remove('hidden');
                     
-                    setupPanel(currentUserRole); // Panele özel ayarları yap
+                    setupPanel(currentUserRole); 
+                }).catch(error => {
+                    auth.signOut();
+                    alert("Kullanıcı rolü kontrol edilemedi: " + error.message);
                 });
 
             } else {
@@ -211,26 +197,25 @@
             const isTeacher = role === 'teacher';
             document.getElementById('teacher-tools').classList.toggle('hidden', !isTeacher);
             document.getElementById('rapor-btn').classList.toggle('hidden', !isTeacher);
-            document.getElementById('parent-info').classList.add('hidden'); // Veli log alanı başta gizli
+            document.getElementById('parent-info').classList.add('hidden'); 
             
             if (isTeacher) {
                 document.getElementById('panel-title').innerText = '👨‍🏫 Öğretmen Yönetim Paneli';
                 document.getElementById('action-header').innerText = 'İşlemler';
                 document.getElementById('list-title').innerText = 'Tüm Öğrenciler';
-                verileriDinleTeacher(); // Tüm öğrencileri listele
+                verileriDinleTeacher(); 
             } else { // Veli
                 document.getElementById('panel-title').innerText = '👨‍👩‍👧 Veli Bilgilendirme Portalı';
                 document.getElementById('action-header').innerText = 'Puan Detayı';
                 document.getElementById('list-title').innerText = 'Çocuğunuzun Performansı';
                 document.getElementById('parent-info').classList.remove('hidden');
-                verileriDinleParent(); // Sadece kendi çocuğunu listele
-                loglariGosterParent(); // Çocuğun loglarını göster
+                verileriDinleParent(); 
+                loglariGosterParent(); 
             }
         }
         
         // --- ÖĞRETMEN İŞLEMLERİ ---
         
-        // 1. Öğrenci Ekle
         function ogrenciEkle() {
             const ad = document.getElementById('new-name').value;
             const sinif = document.getElementById('new-class').value;
@@ -245,17 +230,17 @@
                 document.getElementById('new-name').value = "";
                 document.getElementById('new-class').value = "";
                 alert("Öğrenci başarıyla eklendi.");
+            }).catch(error => {
+                alert("Öğrenci eklenirken hata oluştu: " + error.message);
             });
         }
 
-        // 2. Tüm Öğrencileri Listele (Öğretmen)
         function verileriDinleTeacher() {
              db.collection("students").orderBy("className").onSnapshot((snapshot) => {
-                renderStudentList(snapshot); // Ortak fonksiyona yolla
+                renderStudentList(snapshot);
             });
         }
         
-        // 3. Puanlama Modalını Aç
         function openScoreModal(id, name, score) {
             document.getElementById('modal-student-id').value = id;
             document.getElementById('modal-student-name').innerText = name;
@@ -265,21 +250,21 @@
             new bootstrap.Modal(document.getElementById('scoreModal')).show();
         }
 
-        // 4. Puan Kaydetme (Davranış Kaydı)
         function puanKaydet() {
             const id = document.getElementById('modal-student-id').value;
-            const puan = parseInt(document.getElementById('point-input').value);
+            const puanStr = document.getElementById('point-input').value;
             const neden = document.getElementById('reason-input').value;
+            
+            if (!puanStr || !neden) return alert("Puan ve neden alanları doldurulmalıdır.");
+            
+            const puan = parseInt(puanStr);
             const mevcutPuan = parseInt(document.getElementById('modal-current-score').value);
-            
-            if (isNaN(puan) || !neden) return alert("Puan ve neden alanları doldurulmalıdır.");
-            
             const yeniPuan = mevcutPuan + puan;
             
-            // 4.1. Öğrencinin toplam puanını güncelle
+            // 1. Öğrencinin toplam puanını güncelle
             db.collection("students").doc(id).update({ score: yeniPuan });
             
-            // 4.2. Log (Geçmiş) kaydı ekle
+            // 2. Log (Geçmiş) kaydı ekle
             db.collection("logs").add({
                 studentId: id,
                 change: puan,
@@ -287,23 +272,17 @@
                 date: firebase.firestore.FieldValue.serverTimestamp(),
                 teacher: auth.currentUser.email
             }).then(() => {
-                // 4.3. Analytics kaydı
-                analytics.logEvent('score_updated', {
-                    student_id: id,
-                    point_change: puan,
-                    is_positive: puan > 0 ? 'yes' : 'no'
-                });
                 new bootstrap.Modal(document.getElementById('scoreModal')).hide();
+            }).catch(error => {
+                alert("Puan kaydedilirken hata oluştu: " + error.message);
             });
         }
         
         // --- VELİ İŞLEMLERİ ---
         
-        // 1. Sadece Kendi Çocuğunu Listele (Veli)
         function verileriDinleParent() {
-            if (!currentStudentId) return document.getElementById('student-list-body').innerHTML = '<tr><td colspan="4" class="text-center text-danger">Hesabınız hiçbir öğrenciye atanmamış.</td></tr>';
+            if (!currentStudentId) return document.getElementById('student-list-body').innerHTML = '<tr><td colspan="4" class="text-center text-danger">Hesabınız hiçbir öğrenciye atanmamış. Lütfen öğretmeninize başvurunuz.</td></tr>';
             
-            // Sadece tek bir öğrenciyi ID'si ile dinle
             db.collection("students").doc(currentStudentId).onSnapshot((doc) => {
                 const liste = document.getElementById("student-list-body");
                 liste.innerHTML = "";
@@ -318,7 +297,7 @@
                             <td><span class="badge bg-secondary">${data.className}</span></td>
                             <td>${data.name}</td>
                             <td class="${renk} score-badge">${data.score}</td>
-                            <td><span class="text-muted small">Erişim Kısıtlı</span></td>
+                            <td><span class="text-muted small">Okuma Erişimi</span></td>
                         </tr>
                     `;
                     liste.innerHTML += row;
@@ -328,7 +307,6 @@
             });
         }
         
-        // 2. Çocuğun Loglarını Göster (Veli)
         function loglariGosterParent() {
              if (!currentStudentId) return;
              
@@ -366,15 +344,13 @@
 
         // --- RAPORLAMA İŞLEMLERİ (Öğretmen) ---
         
-        // Rapor modalını açar
         function showReports() {
              new bootstrap.Modal(document.getElementById('reportModal')).show();
         }
         
-        // Raporu Üret
         function raporUret(tip) {
             const output = document.getElementById('report-output');
-            output.innerHTML = 'Rapor hazırlanıyor...';
+            output.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div> Rapor hazırlanıyor...</div>';
 
             const endDate = new Date();
             const startDate = new Date();
@@ -385,9 +361,8 @@
                 startDate.setMonth(endDate.getMonth() - 1);
             }
             
-            // Tüm logları filtrele
             db.collection("logs").where("date", ">=", startDate).get().then(snapshot => {
-                let studentSummary = {}; // Öğrenci ID'sine göre özet
+                let studentSummary = {}; 
                 let totalPositive = 0;
                 let totalNegative = 0;
 
@@ -408,7 +383,6 @@
                     }
                 });
                 
-                // Öğrenci İsimlerini Çek (Daha karmaşık ama doğru yol)
                 const studentPromises = Object.keys(studentSummary).map(id => 
                     db.collection('students').doc(id).get().then(doc => {
                         if (doc.exists) {
@@ -417,12 +391,11 @@
                     })
                 );
                 
-                // Tüm isimler çekildikten sonra raporu oluştur
                 Promise.all(studentPromises).then(() => {
                     let html = `
                         <h6>${tip.toUpperCase()} PERFORMANS ÖZETİ (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()})</h6>
                         <p class="small">Toplam Verilen Puan: <span class="text-success">${totalPositive}</span> Olumlu, <span class="text-danger">${totalNegative}</span> Olumsuz</p>
-                        <table class="table table-striped table-sm">
+                        <table class="table table-striped table-sm" id="report-table">
                             <thead><tr><th>Öğrenci</th><th>Olumlu Puan</th><th>Olumsuz Puan</th><th>Net Puan</th></tr></thead>
                             <tbody>
                     `;
@@ -452,7 +425,6 @@
         
         // --- ORTAK FONKSİYONLAR ---
         
-        // Öğrenci listesini HTML'e yazar
         function renderStudentList(snapshot) {
             const liste = document.getElementById("student-list-body");
             liste.innerHTML = "";
